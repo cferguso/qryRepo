@@ -1,0 +1,4 @@
+SELECT areasymbol, musym, muname
+FROM legend l
+INNER JOIN mapunit m on m.lkey = l.lkey
+WHERE aresymbol = 'param1'
