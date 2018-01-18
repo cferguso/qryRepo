@@ -1,0 +1,40 @@
+SELECT areasymbol, musym, muname, mukey
+ INTO #kitchensink
+ FROM legend  AS lks
+ INNER JOIN  mapunit AS muks ON muks.lkey = lks.lkey AND lks.areasymbol ='param1'
+ 
+ 
+ SELECT mu1.mukey, cokey, comppct_r,  param2, SUM (comppct_r) over(partition by mu1.mukey ) AS SUM_COMP_PCT
+ INTO #comp_temp
+ FROM legend  AS l1
+ INNER JOIN  mapunit AS mu1 ON mu1.lkey = l1.lkey AND l1.areasymbol = 'param1'
+ INNER JOIN  component AS c1 ON c1.mukey = mu1.mukey AND majcompflag = 'Yes'
+ WHERE param2 IS NOT NULL
+ 
+ 
+ SELECT  mukey, cokey, SUM_COMP_PCT, param2,  CASE WHEN comppct_r = SUM_COMP_PCT THEN 1
+ ELSE CAST (CAST (comppct_r AS  decimal (5,2)) / CAST (SUM_COMP_PCT AS decimal (5,2)) AS decimal (5,2)) END AS WEIGHTED_COMP_PCT
+ INTO #comp_temp3
+ FROM #comp_temp
+ 
+
+ 
+ SELECT #comp_temp3.MUKEY,#comp_temp3.COKEY, WEIGHTED_COMP_PCT * param2 AS COMP_WEIGHTED_AVG
+ INTO #last_step
+ FROM #comp_temp3
+ GROUP BY  #comp_temp3.MUKEY,#comp_temp3.COKEY, WEIGHTED_COMP_PCT, param2
+ 
+ SELECT areasymbol, musym, muname,
+ #kitchensink.mukey, #last_step.COKEY,
+ SUM (COMP_WEIGHTED_AVG) over(partition by #kitchensink.mukey)AS range_r
+ INTO #last_step2 FROM #last_step
+ RIGHT OUTER JOIN #kitchensink ON #kitchensink.mukey=#last_step.mukey
+ GROUP BY #kitchensink.areasymbol, #kitchensink.musym, #kitchensink.muname, #kitchensink.mukey, COMP_WEIGHTED_AVG, #last_step.COKEY
+ ORDER BY #kitchensink.areasymbol, #kitchensink.musym, #kitchensink.muname, #kitchensink.mukey
+ 
+ SELECT #last_step2.areasymbol, #last_step2.musym, #last_step2.muname,
+ #last_step2.mukey, REPLACE (#last_step2.range_r, '.00', '') AS range_prod
+ FROM #last_step2
+ LEFT OUTER JOIN #last_step ON #last_step.mukey=#last_step2.mukey
+ GROUP BY #last_step2.areasymbol, #last_step2.musym, #last_step2.muname, #last_step2.mukey, #last_step2.range_r
+ ORDER BY #last_step2.areasymbol, #last_step2.musym, #last_step2.muname, #last_step2.mukey, #last_step2.range_r
